@@ -332,6 +332,42 @@ Créer un fichier `test-client.html` :
 </html>
 ```
 
+## 🚀 Déploiement sur AWS EC2
+
+Ce projet est prêt pour un déploiement professionnel sur AWS EC2. Consultez le guide détaillé :
+
+**[📖 Guide de Déploiement AWS EC2](DEPLOYMENT.md)**
+
+### Quick Start
+
+1. **Lancer une instance EC2 Ubuntu 22.04**
+2. **Se connecter via SSH**
+3. **Installer Docker et Docker Compose**
+4. **Cloner le projet et configurer les variables d'environnement**
+5. **Déployer avec le script automatique :**
+
+```bash
+./scripts/deploy-ec2.sh production
+```
+
+Le guide complet couvre :
+- Configuration EC2 et Security Groups
+- Installation de l'environnement (Docker, Node.js, Nginx)
+- Déploiement avec Docker ou PM2
+- Configuration Nginx comme reverse proxy
+- SSL/HTTPS avec Let's Encrypt
+- Sécurité et bonnes pratiques
+- Monitoring et gestion des logs
+- Dépannage
+
+### Fichiers de déploiement disponibles
+
+- [Dockerfile](Dockerfile) - Image Docker optimisée multi-stage
+- [docker-compose.yml](docker-compose.yml) - Configuration Docker Compose
+- [nginx/nginx.conf](nginx/nginx.conf) - Configuration Nginx avec WebSocket
+- [ecosystem.config.js](ecosystem.config.js) - Configuration PM2
+- [scripts/deploy-ec2.sh](scripts/deploy-ec2.sh) - Script de déploiement automatique
+
 ## 🚧 TODO / Améliorations futures
 
 - [ ] Rate limiting par utilisateur

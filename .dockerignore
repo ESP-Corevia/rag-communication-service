@@ -1,12 +1,63 @@
+# Dependencies
 node_modules
-dist
-logs
-.env
-.env.local
-.git
-.gitignore
-*.md
 npm-debug.log
 yarn-error.log
+package-lock.json
+
+# Build outputs
+dist
+*.tsbuildinfo
+
+# Logs
+logs
+*.log
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Documentation
+*.md
+!README.md
+docs
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# OS
 .DS_Store
+Thumbs.db
+
+# Testing
 coverage
+.nyc_output
+*.test.ts
+*.spec.ts
+test
+tests
+__tests__
+
+# CI/CD
+.github
+.gitlab-ci.yml
+.travis.yml
+
+# Docker
+Dockerfile*
+docker-compose*
+.dockerignore
+
+# Deployment
+deploy
+deployment
+scripts/deploy*

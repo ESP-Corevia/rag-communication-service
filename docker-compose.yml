@@ -14,7 +14,7 @@ services:
       - MISTRAL_API_KEY=${MISTRAL_API_KEY}
       - PINECONE_API_KEY=${PINECONE_API_KEY}
       - PINECONE_ENVIRONMENT=${PINECONE_ENVIRONMENT:-us-east-1-aws}
-      - PINECONE_INDEX_NAME=${PINECONE_INDEX_NAME:-corevia-medecin-generaliste}
+      - PINECONE_INDEX_NAME=${PINECONE_INDEX_NAME:-corevia-medical}
       - LOG_LEVEL=${LOG_LEVEL:-info}
     volumes:
       - ./logs:/app/logs
@@ -22,7 +22,7 @@ services:
     networks:
       - corevia-network
     healthcheck:
-      test: ["CMD", "node", "-e", "require('net').connect({port:3000,timeout:5000}).on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))"]
+      test: ["CMD", "node", "-e", "require('net').connect({port:4000,timeout:5000}).on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))"]
       interval: 30s
       timeout: 10s
       retries: 3
