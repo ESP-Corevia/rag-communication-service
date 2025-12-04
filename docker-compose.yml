@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  corevia-ia-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: corevia-ia-service
+    ports:
+      - "4000:4000"
+    environment:
+      - NODE_ENV=production
+      - PORT=4000
+      - MISTRAL_API_KEY=${MISTRAL_API_KEY}
+      - PINECONE_API_KEY=${PINECONE_API_KEY}
+      - PINECONE_ENVIRONMENT=${PINECONE_ENVIRONMENT:-us-east-1-aws}
+      - PINECONE_INDEX_NAME=${PINECONE_INDEX_NAME:-corevia-medecin-generaliste}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    volumes:
+      - ./logs:/app/logs
+    restart: unless-stopped
+    networks:
+      - corevia-network
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('net').connect({port:3000,timeout:5000}).on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  corevia-network:
+    driver: bridge
+
+volumes:
+  logs:

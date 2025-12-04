@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Corevia IA - Test Client</title>
+  <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      overflow: hidden;
+    }
+
+    .header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 30px;
+      text-align: center;
+    }
+
+    .header h1 {
+      font-size: 28px;
+      margin-bottom: 10px;
+    }
+
+    .status {
+      display: inline-block;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 14px;
+      font-weight: 500;
+      margin-top: 10px;
+    }
+
+    .status.connected {
+      background: rgba(52, 211, 153, 0.2);
+      color: #10b981;
+    }
+
+    .status.disconnected {
+      background: rgba(239, 68, 68, 0.2);
+      color: #ef4444;
+    }
+
+    .chat-container {
+      height: 500px;
+      overflow-y: auto;
+      padding: 20px;
+      background: #f9fafb;
+    }
+
+    .message {
+      margin-bottom: 16px;
+      padding: 16px;
+      border-radius: 12px;
+      line-height: 1.6;
+    }
+
+    .message.user {
+      background: #667eea;
+      color: white;
+      margin-left: 60px;
+    }
+
+    .message.assistant {
+      background: white;
+      border: 1px solid #e5e7eb;
+      margin-right: 60px;
+    }
+
+    .message.error {
+      background: #fee2e2;
+      border: 1px solid #fecaca;
+      color: #dc2626;
+    }
+
+    .input-container {
+      display: flex;
+      gap: 12px;
+      padding: 20px;
+      border-top: 1px solid #e5e7eb;
+      background: white;
+    }
+
+    input {
+      flex: 1;
+      padding: 14px 18px;
+      border: 2px solid #e5e7eb;
+      border-radius: 8px;
+      font-size: 15px;
+      transition: border-color 0.3s;
+    }
+
+    input:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+
+    button {
+      padding: 14px 28px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 16px rgba(102, 126, 234, 0.4);
+    }
+
+    button:active {
+      transform: translateY(0);
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .typing-indicator {
+      display: none;
+      padding: 16px;
+      color: #6b7280;
+      font-style: italic;
+    }
+
+    .typing-indicator.active {
+      display: block;
+    }
+
+    pre {
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      margin: 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🏥 Corevia IA Service</h1>
+      <p>Agent Médecin Généraliste - Test Client</p>
+      <span class="status disconnected" id="status">● Déconnecté</span>
+    </div>
+
+    <div class="chat-container" id="chatContainer">
+      <div class="message assistant">
+        <strong>Assistant Médical</strong><br>
+        Bonjour ! Je suis un assistant médical virtuel. Comment puis-je vous aider aujourd'hui ?<br><br>
+        <em>⚠️ Je ne suis pas un médecin et mes conseils sont informatifs uniquement.</em>
+      </div>
+    </div>
+
+    <div class="typing-indicator" id="typingIndicator">
+      L'assistant est en train d'écrire...
+    </div>
+
+    <div class="input-container">
+      <input
+        type="text"
+        id="queryInput"
+        placeholder="Décrivez vos symptômes ou posez votre question..."
+        onkeypress="handleKeyPress(event)"
+      />
+      <button onclick="sendQuery()" id="sendButton">Envoyer</button>
+    </div>
+  </div>
+
+  <script>
+    let socket;
+    let currentResponse = '';
+    let isStreaming = false;
+
+    // Initialize socket connection
+    function initSocket() {
+      socket = io('http://localhost:4000');
+
+      socket.on('connect', () => {
+        console.log('Connected to Corevia IA Service');
+        updateStatus(true);
+      });
+
+      socket.on('disconnect', () => {
+        console.log('Disconnected from Corevia IA Service');
+        updateStatus(false);
+      });
+
+      socket.on('connection', (data) => {
+        console.log('Connection message:', data);
+      });
+
+      socket.on('message', (data) => {
+        handleMessage(data);
+      });
+    }
+
+    function updateStatus(connected) {
+      const statusEl = document.getElementById('status');
+      if (connected) {
+        statusEl.textContent = '● Connecté';
+        statusEl.className = 'status connected';
+      } else {
+        statusEl.textContent = '● Déconnecté';
+        statusEl.className = 'status disconnected';
+      }
+    }
+
+    function handleMessage(data) {
+      const chatContainer = document.getElementById('chatContainer');
+      const typingIndicator = document.getElementById('typingIndicator');
+
+      switch (data.type) {
+        case 'chunk':
+          if (!isStreaming) {
+            // Create new message bubble
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message assistant';
+            messageDiv.id = 'currentResponse';
+            messageDiv.innerHTML = '<strong>Assistant Médical</strong><br><pre></pre>';
+            chatContainer.appendChild(messageDiv);
+            isStreaming = true;
+            currentResponse = '';
+          }
+
+          // Append chunk to current response
+          currentResponse += data.content;
+          const currentMsg = document.getElementById('currentResponse');
+          if (currentMsg) {
+            currentMsg.querySelector('pre').textContent = currentResponse;
+          }
+
+          // Auto-scroll
+          chatContainer.scrollTop = chatContainer.scrollHeight;
+          break;
+
+        case 'done':
+          isStreaming = false;
+          currentResponse = '';
+          typingIndicator.classList.remove('active');
+          document.getElementById('sendButton').disabled = false;
+          document.getElementById('queryInput').disabled = false;
+          console.log('Response complete');
+          break;
+
+        case 'error':
+          isStreaming = false;
+          currentResponse = '';
+          typingIndicator.classList.remove('active');
+
+          const errorDiv = document.createElement('div');
+          errorDiv.className = 'message error';
+          errorDiv.innerHTML = `<strong>❌ Erreur</strong><br>${data.message}`;
+          chatContainer.appendChild(errorDiv);
+
+          document.getElementById('sendButton').disabled = false;
+          document.getElementById('queryInput').disabled = false;
+
+          chatContainer.scrollTop = chatContainer.scrollHeight;
+          break;
+      }
+    }
+
+    function sendQuery() {
+      const input = document.getElementById('queryInput');
+      const query = input.value.trim();
+
+      if (!query || !socket.connected) {
+        return;
+      }
+
+      // Add user message to chat
+      const chatContainer = document.getElementById('chatContainer');
+      const userDiv = document.createElement('div');
+      userDiv.className = 'message user';
+      userDiv.innerHTML = `<strong>Vous</strong><br>${query}`;
+      chatContainer.appendChild(userDiv);
+
+      // Show typing indicator
+      document.getElementById('typingIndicator').classList.add('active');
+
+      // Disable input while processing
+      document.getElementById('sendButton').disabled = true;
+      document.getElementById('queryInput').disabled = true;
+
+      // Send query to server
+      socket.emit('query', {
+        type: 'query',
+        agent: 'medecin_generaliste',
+        query: query,
+        userId: 'test-user-' + Date.now()
+      });
+
+      // Clear input
+      input.value = '';
+
+      // Auto-scroll
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+
+    function handleKeyPress(event) {
+      if (event.key === 'Enter') {
+        sendQuery();
+      }
+    }
+
+    // Initialize on page load
+    window.addEventListener('load', initSocket);
+  </script>
+</body>
+</html>
