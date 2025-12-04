@@ -39,6 +39,10 @@ export class MedecinGeneralisteAgent extends BaseAgent {
     return URGENCY_RESPONSE;
   }
 
+  protected getNamespace(): string {
+    return 'medecin-generaliste';
+  }
+
   /**
    * Additional medical-specific validation
    */

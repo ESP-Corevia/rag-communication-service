@@ -250,12 +250,14 @@ async function main() {
       await new Promise((resolve) => setTimeout(resolve, 500));
     }
 
-    // Upsert to Pinecone
-    logger.info('📤 Upserting vectors to Pinecone...');
-    await pineconeService.upsertVectors(vectors);
+    // Upsert to Pinecone with namespace
+    const namespace = 'medecin-generaliste';
+    logger.info(`📤 Upserting vectors to Pinecone namespace '${namespace}'...`);
+    await pineconeService.upsertVectors(vectors, namespace);
 
     logger.info('✅ Successfully populated Pinecone with medical knowledge!');
     logger.info(`📊 Total documents: ${vectors.length}`);
+    logger.info(`🏷️  Namespace: ${namespace}`);
 
     process.exit(0);
   } catch (error) {

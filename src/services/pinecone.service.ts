@@ -8,7 +8,6 @@ import { RAGContext, PineconeMatch } from '../types';
 export class PineconeService {
   private pinecone: Pinecone;
   private indexName: string;
-  private namespace = 'medical-knowledge';
 
   constructor() {
     const config = getConfig();
@@ -22,19 +21,20 @@ export class PineconeService {
   }
 
   /**
-   * Search for relevant context in Pinecone
+   * Search for relevant context in Pinecone with namespace support
    */
   async searchContext(
     embedding: number[],
+    namespace: string,
     topK: number = 5,
     minScore: number = 0.7
   ): Promise<RAGContext[]> {
     try {
-      logger.debug(`Searching Pinecone with topK=${topK}, minScore=${minScore}`);
+      logger.debug(`Searching Pinecone namespace '${namespace}' with topK=${topK}, minScore=${minScore}`);
 
       const index = this.pinecone.Index(this.indexName);
 
-      const queryResponse = await index.namespace(this.namespace).query({
+      const queryResponse = await index.namespace(namespace).query({
         vector: embedding,
         topK,
         includeMetadata: true,
@@ -51,7 +51,7 @@ export class PineconeService {
           metadata: match.metadata,
         }));
 
-      logger.info(`Found ${contexts.length} relevant contexts (score >= ${minScore})`);
+      logger.info(`Found ${contexts.length} relevant contexts in namespace '${namespace}' (score >= ${minScore})`);
 
       return contexts;
     } catch (error) {
@@ -61,23 +61,24 @@ export class PineconeService {
   }
 
   /**
-   * Upsert vectors to Pinecone (for data ingestion)
+   * Upsert vectors to Pinecone with namespace support
    */
   async upsertVectors(
     vectors: Array<{
       id: string;
       values: number[];
       metadata: Record<string, any>;
-    }>
+    }>,
+    namespace: string
   ): Promise<void> {
     try {
-      logger.debug(`Upserting ${vectors.length} vectors to Pinecone`);
+      logger.debug(`Upserting ${vectors.length} vectors to Pinecone namespace '${namespace}'`);
 
       const index = this.pinecone.Index(this.indexName);
 
-      await index.namespace(this.namespace).upsert(vectors);
+      await index.namespace(namespace).upsert(vectors);
 
-      logger.info(`Successfully upserted ${vectors.length} vectors`);
+      logger.info(`Successfully upserted ${vectors.length} vectors to namespace '${namespace}'`);
     } catch (error) {
       logger.error('Error upserting vectors:', error);
       throw new Error('Failed to upsert vectors');
@@ -87,15 +88,15 @@ export class PineconeService {
   /**
    * Delete all vectors in namespace (use with caution)
    */
-  async deleteAllVectors(): Promise<void> {
+  async deleteAllVectors(namespace: string): Promise<void> {
     try {
-      logger.warn(`Deleting all vectors in namespace: ${this.namespace}`);
+      logger.warn(`Deleting all vectors in namespace: ${namespace}`);
 
       const index = this.pinecone.Index(this.indexName);
 
-      await index.namespace(this.namespace).deleteAll();
+      await index.namespace(namespace).deleteAll();
 
-      logger.info('All vectors deleted successfully');
+      logger.info(`All vectors deleted successfully from namespace '${namespace}'`);
     } catch (error) {
       logger.error('Error deleting vectors:', error);
       throw new Error('Failed to delete vectors');

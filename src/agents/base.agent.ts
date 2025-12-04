@@ -27,6 +27,11 @@ export abstract class BaseAgent {
   protected abstract getUrgencyResponse(): string;
 
   /**
+   * Abstract method to get Pinecone namespace for this agent
+   */
+  protected abstract getNamespace(): string;
+
+  /**
    * Retrieve relevant context from RAG
    */
   protected async retrieveContext(query: string): Promise<string> {
@@ -34,11 +39,14 @@ export abstract class BaseAgent {
       // Generate embedding for the query
       const embedding = await this.llmService.generateEmbedding(query);
 
-      // Search for relevant context
-      const contexts = await this.pineconeService.searchContext(embedding, 5, 0.7);
+      // Get the namespace for this agent
+      const namespace = this.getNamespace();
+
+      // Search for relevant context in agent's namespace
+      const contexts = await this.pineconeService.searchContext(embedding, namespace, 5, 0.7);
 
       if (contexts.length === 0) {
-        logger.info('No relevant context found in knowledge base');
+        logger.info(`No relevant context found in namespace '${namespace}'`);
         return '';
       }
 
@@ -47,7 +55,7 @@ export abstract class BaseAgent {
         .map((ctx, idx) => `[${idx + 1}] (Score: ${ctx.score.toFixed(2)})\n${ctx.content}`)
         .join('\n\n');
 
-      logger.info(`Retrieved ${contexts.length} relevant contexts`);
+      logger.info(`Retrieved ${contexts.length} relevant contexts from namespace '${namespace}'`);
       return formattedContext;
     } catch (error) {
       logger.error('Error retrieving context:', error);
