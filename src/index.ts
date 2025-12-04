@@ -18,8 +18,31 @@ async function bootstrap() {
     });
 
     // Enable CORS
+    const allowedOrigins = process.env.ALLOWED_ORIGINS
+      ? process.env.ALLOWED_ORIGINS.split(',')
+      : ['http://localhost:3000', 'http://localhost:5173'];
+
+    // CORS configuration
+    // Note: Mobile apps (React Native, Flutter) are not affected by CORS
+    // For mobile apps, you can use any origin or implement API key authentication
     app.enableCors({
-      origin: '*',
+      origin: (
+        origin: string | undefined,
+        callback: (err: Error | null, allow?: boolean) => void,
+      ) => {
+        // Allow requests with no origin (mobile apps, Postman, etc.)
+        if (!origin) return callback(null, true);
+
+        // Allow all origins if ALLOWED_ORIGINS is '*'
+        if (allowedOrigins.includes('*')) return callback(null, true);
+
+        // Check if origin is in the allowed list
+        if (allowedOrigins.includes(origin)) {
+          callback(null, true);
+        } else {
+          callback(new Error('Not allowed by CORS'));
+        }
+      },
       credentials: true,
     });
 
