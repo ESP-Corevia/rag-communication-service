@@ -17,8 +17,9 @@ variable "vpc_cidr" {
 }
 
 variable "domain_name" {
-  description = "Root domain for Route53 zone (e.g. corevia.health)."
+  description = "Root domain for Route53 zone (e.g. corevia.health). Leave empty to deploy without custom domain/HTTPS (HTTP via ALB DNS only)."
   type        = string
+  default     = ""
 }
 
 variable "subdomain" {
@@ -98,4 +99,3 @@ variable "alb_idle_timeout" {
   type        = number
   default     = 3600
 }
-

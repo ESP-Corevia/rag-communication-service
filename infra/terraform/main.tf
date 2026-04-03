@@ -9,7 +9,8 @@ data "aws_availability_zones" "available" {
 locals {
   name_prefix = var.project_name
 
-  fqdn = "${var.subdomain}.${var.domain_name}"
+  custom_domain_enabled = length(var.domain_name) > 0
+  fqdn = local.custom_domain_enabled ? "${var.subdomain}.${var.domain_name}" : ""
   azs  = slice(data.aws_availability_zones.available.names, 0, 2)
 }
 
@@ -17,15 +18,16 @@ locals {
 # Route53 + ACM
 # -------------------------
 resource "aws_route53_zone" "this" {
-  count = var.hosted_zone_id == "" ? 1 : 0
+  count = local.custom_domain_enabled && var.hosted_zone_id == "" ? 1 : 0
   name  = var.domain_name
 }
 
 locals {
-  zone_id = var.hosted_zone_id != "" ? var.hosted_zone_id : aws_route53_zone.this[0].zone_id
+  zone_id = local.custom_domain_enabled ? (var.hosted_zone_id != "" ? var.hosted_zone_id : try(aws_route53_zone.this[0].zone_id, "")) : ""
 }
 
 resource "aws_acm_certificate" "this" {
+  count             = local.custom_domain_enabled ? 1 : 0
   domain_name       = local.fqdn
   validation_method = "DNS"
 
@@ -36,7 +38,7 @@ resource "aws_acm_certificate" "this" {
 
 resource "aws_route53_record" "acm_validation" {
   for_each = {
-    for dvo in aws_acm_certificate.this.domain_validation_options : dvo.domain_name => {
+    for dvo in (local.custom_domain_enabled ? aws_acm_certificate.this[0].domain_validation_options : []) : dvo.domain_name => {
       name   = dvo.resource_record_name
       record = dvo.resource_record_value
       type   = dvo.resource_record_type
@@ -51,7 +53,8 @@ resource "aws_route53_record" "acm_validation" {
 }
 
 resource "aws_acm_certificate_validation" "this" {
-  certificate_arn         = aws_acm_certificate.this.arn
+  count                   = local.custom_domain_enabled ? 1 : 0
+  certificate_arn         = aws_acm_certificate.this[0].arn
   validation_record_fqdns = [for r in aws_route53_record.acm_validation : r.fqdn]
 }
 
@@ -337,7 +340,20 @@ resource "aws_lb_target_group" "this" {
   }
 }
 
-resource "aws_lb_listener" "http" {
+resource "aws_lb_listener" "http_forward" {
+  count             = local.custom_domain_enabled ? 0 : 1
+  load_balancer_arn = aws_lb.this.arn
+  port              = 80
+  protocol          = "HTTP"
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.this.arn
+  }
+}
+
+resource "aws_lb_listener" "http_redirect" {
+  count             = local.custom_domain_enabled ? 1 : 0
   load_balancer_arn = aws_lb.this.arn
   port              = 80
   protocol          = "HTTP"
@@ -353,11 +369,12 @@ resource "aws_lb_listener" "http" {
 }
 
 resource "aws_lb_listener" "https" {
+  count             = local.custom_domain_enabled ? 1 : 0
   load_balancer_arn = aws_lb.this.arn
   port              = 443
   protocol          = "HTTPS"
   ssl_policy        = "ELBSecurityPolicy-TLS13-1-2-2021-06"
-  certificate_arn   = aws_acm_certificate_validation.this.certificate_arn
+  certificate_arn   = aws_acm_certificate_validation.this[0].certificate_arn
 
   default_action {
     type             = "forward"
@@ -366,6 +383,7 @@ resource "aws_lb_listener" "https" {
 }
 
 resource "aws_route53_record" "alb_alias" {
+  count   = local.custom_domain_enabled ? 1 : 0
   zone_id = local.zone_id
   name    = local.fqdn
   type    = "A"
@@ -458,8 +476,12 @@ resource "aws_ecs_service" "this" {
   deployment_minimum_healthy_percent = 50
   deployment_maximum_percent         = 200
 
+  # `depends_on` must be a static list. These listener resources are either 0 or 1 instance depending
+  # on whether a custom domain/HTTPS is enabled; referencing the resources themselves is safe.
   depends_on = [
+    aws_lb_target_group.this,
+    aws_lb_listener.http_forward,
+    aws_lb_listener.http_redirect,
     aws_lb_listener.https,
   ]
 }
-

@@ -3,6 +3,11 @@ output "service_fqdn" {
   value       = local.fqdn
 }
 
+output "service_url" {
+  description = "Service URL to use (custom domain if configured, otherwise ALB DNS over HTTP)."
+  value       = local.custom_domain_enabled ? "https://${local.fqdn}" : "http://${aws_lb.this.dns_name}"
+}
+
 output "alb_dns_name" {
   description = "ALB DNS name (useful before Route53 is ready)."
   value       = aws_lb.this.dns_name
