@@ -2,7 +2,7 @@ module.exports = {
   apps: [
     {
       name: 'corevia-ia-service',
-      script: 'dist/index.js',
+      script: 'dist/src/index.js',
       instances: 1,
       exec_mode: 'cluster',
       autorestart: true,
