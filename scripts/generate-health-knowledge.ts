@@ -241,6 +241,7 @@ const REQUEST_HEADERS = {
   accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
   'accept-language': 'fr-FR,fr;q=0.95,en;q=0.4',
 };
+const DEFAULT_FETCH_TIMEOUT_MS = 30_000;
 
 function parseArgs(argv: string[]): GeneratorOptions {
   const args = argv.slice(2);
@@ -476,7 +477,8 @@ function uniqueStrings(values: string[]): string[] {
 }
 
 function getTagContents(block: string, tagName: string): string[] {
-  const regex = new RegExp(`<${tagName}(?:\\s[^>]*)?>([\\s\\S]*?)</${tagName}>`, 'gi');
+  const escapedTagName = escapeRegExp(tagName);
+  const regex = new RegExp(`<${escapedTagName}(?:\\s[^>]*)?>([\\s\\S]*?)</${escapedTagName}>`, 'gi');
   const matches: string[] = [];
   let match: RegExpExecArray | null = regex.exec(block);
 
@@ -702,10 +704,48 @@ async function mapWithConcurrency<T, R>(
   return results;
 }
 
-async function fetchText(url: string, encoding: TextEncoding = 'utf8'): Promise<string> {
-  const response = await fetch(url, {
-    headers: REQUEST_HEADERS,
-  });
+function formatError(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return String(error);
+}
+
+function isAbortError(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && 'name' in error && error.name === 'AbortError';
+}
+
+async function fetchResponse(
+  url: string,
+  headers: Record<string, string>,
+  timeoutMs: number = DEFAULT_FETCH_TIMEOUT_MS
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(url, {
+      headers,
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (isAbortError(error)) {
+      throw new Error(`Request to ${url} timed out after ${timeoutMs}ms`);
+    }
+
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+async function fetchText(
+  url: string,
+  encoding: TextEncoding = 'utf8',
+  timeoutMs: number = DEFAULT_FETCH_TIMEOUT_MS
+): Promise<string> {
+  const response = await fetchResponse(url, REQUEST_HEADERS, timeoutMs);
 
   if (!response.ok) {
     throw new Error(`Failed to fetch ${url}: ${response.status} ${response.statusText}`);
@@ -715,13 +755,15 @@ async function fetchText(url: string, encoding: TextEncoding = 'utf8'): Promise<
   return buffer.toString(encoding);
 }
 
-async function fetchJson<T>(url: string): Promise<T> {
-  const response = await fetch(url, {
-    headers: {
+async function fetchJson<T>(url: string, timeoutMs: number = DEFAULT_FETCH_TIMEOUT_MS): Promise<T> {
+  const response = await fetchResponse(
+    url,
+    {
       ...REQUEST_HEADERS,
       accept: 'application/json',
     },
-  });
+    timeoutMs
+  );
 
   if (!response.ok) {
     throw new Error(`Failed to fetch ${url}: ${response.status} ${response.statusText}`);
@@ -1501,6 +1543,8 @@ async function ingestSanteMentaleInfoService(
 ): Promise<void> {
   const urls = await discoverSanteMentaleUrls(config);
   const candidates: CandidateDocument[] = [];
+  let failedPageCount = 0;
+  let loggedFailureCount = 0;
 
   await mapWithConcurrency(urls, config.htmlConcurrency, async (url) => {
     try {
@@ -1537,10 +1581,19 @@ async function ingestSanteMentaleInfoService(
       scores.sante_mentale = Math.max(scores.sante_mentale || 0, 8);
       scores.medecin_generaliste = Math.max(scores.medecin_generaliste || 0, 3);
       pushScoredCandidates(candidates, doc, scores);
-    } catch {
+    } catch (error) {
+      failedPageCount += 1;
+      if (loggedFailureCount < 5) {
+        loggedFailureCount += 1;
+        console.warn(`[Sante mentale info service] Skipping ${url}: ${formatError(error)}`);
+      }
       return;
     }
   });
+
+  if (failedPageCount > 0) {
+    console.warn(`[Sante mentale info service] Skipped ${failedPageCount} pages due to fetch or parse errors.`);
+  }
 
   emitCandidates(store, seenIds, candidates, config.agentCaps);
 }
@@ -1654,6 +1707,8 @@ async function ingestVaccinationInfoService(
 ): Promise<void> {
   const urls = await discoverVaccinationInfoServiceUrls(config);
   const candidates: CandidateDocument[] = [];
+  let failedPageCount = 0;
+  let loggedFailureCount = 0;
 
   await mapWithConcurrency(urls, config.htmlConcurrency, async (url) => {
     try {
@@ -1689,10 +1744,19 @@ async function ingestVaccinationInfoService(
       scores.vaccination = Math.max(scores.vaccination || 0, 8);
       scores.medecin_generaliste = Math.max(scores.medecin_generaliste || 0, 4);
       pushScoredCandidates(candidates, doc, scores);
-    } catch {
+    } catch (error) {
+      failedPageCount += 1;
+      if (loggedFailureCount < 5) {
+        loggedFailureCount += 1;
+        console.warn(`[Vaccination Info Service] Skipping ${url}: ${formatError(error)}`);
+      }
       return;
     }
   });
+
+  if (failedPageCount > 0) {
+    console.warn(`[Vaccination Info Service] Skipped ${failedPageCount} pages due to fetch or parse errors.`);
+  }
 
   emitCandidates(store, seenIds, candidates, config.agentCaps);
 }
@@ -2024,6 +2088,8 @@ async function ingestSantePubliqueFrance(
 ): Promise<void> {
   const urls = await discoverSantePubliqueFranceUrls(config);
   const candidates: CandidateDocument[] = [];
+  let failedPageCount = 0;
+  let loggedFailureCount = 0;
 
   await mapWithConcurrency(urls, config.htmlConcurrency, async (url) => {
     try {
@@ -2090,10 +2156,19 @@ async function ingestSantePubliqueFrance(
       }
 
       pushScoredCandidates(candidates, doc, scores);
-    } catch {
+    } catch (error) {
+      failedPageCount += 1;
+      if (loggedFailureCount < 5) {
+        loggedFailureCount += 1;
+        console.warn(`[Sante publique France] Skipping ${url}: ${formatError(error)}`);
+      }
       return;
     }
   });
+
+  if (failedPageCount > 0) {
+    console.warn(`[Sante publique France] Skipped ${failedPageCount} pages due to fetch or parse errors.`);
+  }
 
   emitCandidates(store, seenIds, candidates, config.agentCaps);
 }
@@ -2151,6 +2226,8 @@ async function ingestAmeliTopics(
 
   const articleUrls = uniqueStrings(articleUrlsByTheme.flat());
   const candidates: CandidateDocument[] = [];
+  let failedPageCount = 0;
+  let loggedFailureCount = 0;
 
   await mapWithConcurrency(articleUrls, config.htmlConcurrency, async (url) => {
     try {
@@ -2193,10 +2270,19 @@ async function ingestAmeliTopics(
       const scores = inferAgentScores(title, theme ? [theme] : [], combinedText);
       scores.medecin_generaliste = Math.max(scores.medecin_generaliste || 0, 4);
       pushScoredCandidates(candidates, doc, scores);
-    } catch {
+    } catch (error) {
+      failedPageCount += 1;
+      if (loggedFailureCount < 5) {
+        loggedFailureCount += 1;
+        console.warn(`[ameli] Skipping ${url}: ${formatError(error)}`);
+      }
       return;
     }
   });
+
+  if (failedPageCount > 0) {
+    console.warn(`[ameli] Skipped ${failedPageCount} pages due to fetch or parse errors.`);
+  }
 
   emitCandidates(store, seenIds, candidates, config.agentCaps);
 }
@@ -2224,6 +2310,8 @@ async function ingestMangerBouger(
   );
   const selectedUrls = selectDeterministicSubset(sitemapUrls, config.mangerBougerPageLimit, (url) => url);
   const candidates: CandidateDocument[] = [];
+  let failedPageCount = 0;
+  let loggedFailureCount = 0;
 
   await mapWithConcurrency(selectedUrls, config.htmlConcurrency, async (url) => {
     try {
@@ -2260,10 +2348,19 @@ async function ingestMangerBouger(
       scores.nutritionniste = Math.max(scores.nutritionniste || 0, 8);
       scores.medecin_generaliste = Math.max(scores.medecin_generaliste || 0, 3);
       pushScoredCandidates(candidates, doc, scores);
-    } catch {
+    } catch (error) {
+      failedPageCount += 1;
+      if (loggedFailureCount < 5) {
+        loggedFailureCount += 1;
+        console.warn(`[Manger Bouger] Skipping ${url}: ${formatError(error)}`);
+      }
       return;
     }
   });
+
+  if (failedPageCount > 0) {
+    console.warn(`[Manger Bouger] Skipped ${failedPageCount} pages due to fetch or parse errors.`);
+  }
 
   emitCandidates(store, seenIds, candidates, config.agentCaps);
 }

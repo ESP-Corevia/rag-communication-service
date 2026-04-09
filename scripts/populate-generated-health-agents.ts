@@ -25,6 +25,10 @@ interface KnowledgeDocument {
   category: string;
 }
 
+const EMBEDDING_RETRY_ATTEMPTS = 3;
+const EMBEDDING_RETRY_BASE_DELAY_MS = 200;
+const EMBEDDING_THROTTLE_DELAY_MS = 300;
+
 interface GeneratedKnowledgeModule {
   knowledgeByNamespace?: Record<string, KnowledgeDocument[]>;
   default?: {
@@ -123,6 +127,48 @@ async function loadGeneratedKnowledgeByNamespace(): Promise<Record<string, Knowl
   return extractKnowledgeByNamespace(generatedModule, generatedModulePath);
 }
 
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return String(error);
+}
+
+async function sleep(delayMs: number): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, delayMs));
+}
+
+async function generateEmbeddingWithRetry(
+  llmService: LLMService,
+  doc: KnowledgeDocument
+): Promise<number[] | null> {
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= EMBEDDING_RETRY_ATTEMPTS; attempt += 1) {
+    try {
+      return await llmService.generateEmbedding(doc.text);
+    } catch (error) {
+      lastError = error;
+
+      if (attempt >= EMBEDDING_RETRY_ATTEMPTS) {
+        break;
+      }
+
+      const retryDelayMs = EMBEDDING_RETRY_BASE_DELAY_MS * 2 ** (attempt - 1);
+      logger.warn(
+        `  Embedding attempt ${attempt}/${EMBEDDING_RETRY_ATTEMPTS} failed for ${doc.id} (${doc.category}). Retrying in ${retryDelayMs}ms: ${getErrorMessage(error)}`
+      );
+      await sleep(retryDelayMs);
+    }
+  }
+
+  logger.error(
+    `  Failed to generate embedding for ${doc.id} (${doc.category}) after ${EMBEDDING_RETRY_ATTEMPTS} attempts: ${getErrorMessage(lastError)}`
+  );
+  return null;
+}
+
 async function populateNamespace(
   llmService: LLMService,
   pineconeService: PineconeService,
@@ -137,7 +183,12 @@ async function populateNamespace(
     const doc = knowledge[index];
     logger.info(`  Generating embedding ${index + 1}/${knowledge.length} for: ${doc.id}`);
 
-    const embedding = await llmService.generateEmbedding(doc.text);
+    const embedding = await generateEmbeddingWithRetry(llmService, doc);
+
+    if (!embedding) {
+      await sleep(EMBEDDING_THROTTLE_DELAY_MS);
+      continue;
+    }
 
     vectors.push({
       id: doc.id,
@@ -149,7 +200,12 @@ async function populateNamespace(
       },
     });
 
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    await sleep(EMBEDDING_THROTTLE_DELAY_MS);
+  }
+
+  if (vectors.length === 0) {
+    logger.warn(`Skipping namespace '${namespace}' because no embeddings were generated successfully`);
+    return;
   }
 
   logger.info(`📤 Upserting ${vectors.length} vectors to namespace '${namespace}'...`);
@@ -161,8 +217,8 @@ async function main(): Promise<void> {
   try {
     logger.info('🚀 Starting generated health knowledge population...\n');
 
-    const knowledgeByNamespace = await loadGeneratedKnowledgeByNamespace();
     validateEnv();
+    const knowledgeByNamespace = await loadGeneratedKnowledgeByNamespace();
 
     const llmService = new LLMService();
     const pineconeService = new PineconeService();
