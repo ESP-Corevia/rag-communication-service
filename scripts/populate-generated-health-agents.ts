@@ -15,6 +15,9 @@ const { access } = require('fs/promises') as {
 const { resolve } = require('path') as {
   resolve(...paths: string[]): string;
 };
+const { pathToFileURL } = require('url') as {
+  pathToFileURL(path: string): { href: string };
+};
 
 interface KnowledgeDocument {
   id: string;
@@ -22,26 +25,102 @@ interface KnowledgeDocument {
   category: string;
 }
 
-async function loadGeneratedKnowledgeByNamespace(): Promise<Record<string, KnowledgeDocument[]>> {
-  const generatedFilePath = resolve(process.cwd(), 'scripts/generated-health-knowledge.ts');
-
-  try {
-    await access(generatedFilePath);
-  } catch {
-    throw new Error(
-      "Generated health knowledge file not found. Run 'npm run generate-health-knowledge' before 'npm run populate-generated-health'."
-    );
-  }
-
-  const generatedModule = require(generatedFilePath) as {
+interface GeneratedKnowledgeModule {
+  knowledgeByNamespace?: Record<string, KnowledgeDocument[]>;
+  default?: {
     knowledgeByNamespace?: Record<string, KnowledgeDocument[]>;
   };
+}
 
-  if (!generatedModule.knowledgeByNamespace) {
-    throw new Error(`Unable to load knowledgeByNamespace from ${generatedFilePath}`);
+async function fileExists(filePath: string): Promise<boolean> {
+  try {
+    await access(filePath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function resolveGeneratedKnowledgeModulePath(): Promise<string> {
+  const scriptTsPath = resolve(process.cwd(), 'scripts/generated-health-knowledge.ts');
+  const scriptJsPath = resolve(process.cwd(), 'scripts/generated-health-knowledge.js');
+  const distJsPath = resolve(process.cwd(), 'dist/scripts/generated-health-knowledge.js');
+
+  if (await fileExists(scriptJsPath)) {
+    return scriptJsPath;
   }
 
-  return generatedModule.knowledgeByNamespace;
+  if (await fileExists(distJsPath)) {
+    return distJsPath;
+  }
+
+  if (await fileExists(scriptTsPath)) {
+    return scriptTsPath;
+  }
+
+  throw new Error(
+    "Generated health knowledge file not found. Run 'npm run generate-health-knowledge' before 'npm run populate-generated-health'."
+  );
+}
+
+async function importGeneratedModule(modulePath: string): Promise<GeneratedKnowledgeModule> {
+  if (modulePath.endsWith('.js')) {
+    const dynamicImport = new Function('modulePath', 'return import(modulePath);') as (
+      modulePath: string
+    ) => Promise<GeneratedKnowledgeModule>;
+
+    try {
+      return await dynamicImport(pathToFileURL(modulePath).href);
+    } catch (importError) {
+      try {
+        return require(modulePath) as GeneratedKnowledgeModule;
+      } catch (requireError) {
+        throw new Error(
+          `Unable to load generated health knowledge module from ${modulePath}: ${String(importError)} / ${String(requireError)}`
+        );
+      }
+    }
+  }
+
+  const compiledCandidates = [
+    modulePath.replace(/\.ts$/u, '.js'),
+    resolve(process.cwd(), 'dist/scripts/generated-health-knowledge.js'),
+  ];
+
+  for (const compiledCandidate of compiledCandidates) {
+    if (await fileExists(compiledCandidate)) {
+      return importGeneratedModule(compiledCandidate);
+    }
+  }
+
+  try {
+    // ts-node local workflow fallback when the generated corpus exists only as TypeScript.
+    return require(modulePath) as GeneratedKnowledgeModule;
+  } catch (error) {
+    throw new Error(
+      `Unable to load generated TypeScript corpus from ${modulePath}. Run this script via ts-node or generate a compiled .js file first. Cause: ${String(error)}`
+    );
+  }
+}
+
+function extractKnowledgeByNamespace(
+  generatedModule: GeneratedKnowledgeModule,
+  modulePath: string
+): Record<string, KnowledgeDocument[]> {
+  const knowledgeByNamespace =
+    generatedModule.knowledgeByNamespace ?? generatedModule.default?.knowledgeByNamespace;
+
+  if (!knowledgeByNamespace) {
+    throw new Error(`Unable to load knowledgeByNamespace from ${modulePath}`);
+  }
+
+  return knowledgeByNamespace;
+}
+
+async function loadGeneratedKnowledgeByNamespace(): Promise<Record<string, KnowledgeDocument[]>> {
+  const generatedModulePath = await resolveGeneratedKnowledgeModulePath();
+  const generatedModule = await importGeneratedModule(generatedModulePath);
+  return extractKnowledgeByNamespace(generatedModule, generatedModulePath);
 }
 
 async function populateNamespace(

@@ -264,6 +264,16 @@ npm run generate-health-knowledge
 npm run populate-generated-health
 ```
 
+Exemples avec flags optionnels :
+
+```bash
+npm run generate-health-knowledge -- --profile full
+npm run generate-health-knowledge -- --profile starter --output /tmp/generated-health-knowledge.ts
+npm run populate-generated-health
+```
+
+Les flags `--profile` et `--output` sont optionnels pour la génération. Si aucun flag n'est fourni, le générateur utilise le profil par défaut et écrit le corpus dans `scripts/generated-health-knowledge.ts`. Le script de population lit ce fichier par défaut, ou sa version `.js` compilée si elle existe.
+
 ### Politique de dépôt
 
 - `scripts/generated-health-knowledge.ts` est un artefact généré localement et n'est pas versionné

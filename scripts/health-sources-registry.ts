@@ -9,6 +9,8 @@
  *   ts-node scripts/health-sources-registry.ts
  */
 
+// Ces declarations gardent le script autonome quand il est execute directement
+// via ts-node en dehors du scope `src/**/*` du tsconfig principal.
 declare const module: { exports: unknown } | undefined;
 declare const require:
   | undefined
@@ -406,6 +408,11 @@ const allSources: HealthSource[] = [
   ...specialitesEtCasComplexesSources,
 ];
 
+// TODO(corevia-health-ingestion): Support these registry-only sources in the
+// generator. They are intentionally listed in recommendedAgentBundles for future
+// coverage planning, but they are not active until their IDs are added to
+// SUPPORTED_SOURCE_IDS in scripts/generate-health-knowledge.ts:
+// has-guidelines, crat, ciqual, odisse-open-data, orphadata.
 const recommendedAgentBundles: Record<AgentFamily, string[]> = {
   medecin_generaliste: [
     'ameli-health-topics',

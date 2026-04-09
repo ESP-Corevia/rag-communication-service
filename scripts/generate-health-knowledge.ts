@@ -2947,6 +2947,9 @@ async function main(): Promise<void> {
     await ingestSantePubliqueFrance(store, seenIds, config);
   }
 
+  // TODO(corevia-health-ingestion): Re-enable these fallback English ingesters when
+  // the source policy expands beyond FR-only and their IDs are reintroduced in
+  // SUPPORTED_SOURCE_IDS / DEFAULT_SOURCE_IDS.
   if (options.sourceIds.has('medlineplus-xml') && canUseSource('medlineplus-xml')) {
     console.log('Ingesting MedlinePlus topics and definitions...');
     await ingestMedlinePlusTopics(store, seenIds, config);
