@@ -9,6 +9,8 @@
     "start": "node dist/index.js",
     "populate-pinecone": "ts-node scripts/populate-pinecone.ts",
     "populate-all": "ts-node scripts/populate-all-agents.ts",
+    "generate-health-knowledge": "ts-node scripts/generate-health-knowledge.ts",
+    "populate-generated-health": "ts-node scripts/populate-generated-health-agents.ts",
     "lint": "eslint -c eslint.config.mts src/**/*.ts",
     "format": "prettier --write \"src/**/*.ts\""
   },

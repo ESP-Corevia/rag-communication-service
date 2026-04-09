@@ -247,6 +247,37 @@ export class NutritionnisteAgent extends BaseAgent {
 6. Stream tokens via WebSocket
 ```
 
+## 🧾 Pipeline Sources Santé FR
+
+Le repo contient maintenant un pipeline distinct pour construire une base de connaissances santé FR avant ingestion Pinecone.
+
+### Fichiers utiles
+
+- `scripts/health-sources-registry.ts` : registre des sources FR retenues et des sources à ajouter plus tard
+- `scripts/generate-health-knowledge.ts` : génération du corpus consolidé par agent
+- `scripts/populate-generated-health-agents.ts` : ingestion du corpus généré dans Pinecone
+
+### Commandes
+
+```bash
+npm run generate-health-knowledge
+npm run populate-generated-health
+```
+
+### Politique de dépôt
+
+- `scripts/generated-health-knowledge.ts` est un artefact généré localement et n'est pas versionné
+- le dépôt doit contenir la logique d'ingestion, pas les snapshots générés
+- pour reconstruire le corpus après modification d'une source, relancer simplement `npm run generate-health-knowledge`
+
+### Ajouter une source plus tard
+
+1. Déclarer la source dans `scripts/health-sources-registry.ts`
+2. Ajouter l'ingestion dans `scripts/generate-health-knowledge.ts`
+3. Régénérer le corpus
+4. Vérifier les comptes par agent
+5. Lancer la population Pinecone
+
 ## 🔒 Sécurité Médicale
 
 ### Disclaimers automatiques
