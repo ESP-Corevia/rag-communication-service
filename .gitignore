@@ -27,3 +27,6 @@ Thumbs.db
 
 # Testing
 coverage/
+
+# Generated health knowledge artifacts
+scripts/generated-health-knowledge*.ts
