@@ -10,8 +10,8 @@ locals {
   name_prefix = var.project_name
 
   custom_domain_enabled = length(var.domain_name) > 0
-  fqdn = local.custom_domain_enabled ? "${var.subdomain}.${var.domain_name}" : ""
-  azs  = slice(data.aws_availability_zones.available.names, 0, 2)
+  fqdn                  = local.custom_domain_enabled ? "${var.subdomain}.${var.domain_name}" : ""
+  azs                   = slice(data.aws_availability_zones.available.names, 0, 2)
 }
 
 # -------------------------
@@ -38,7 +38,7 @@ resource "aws_acm_certificate" "this" {
 
 resource "aws_route53_record" "acm_validation" {
   for_each = {
-    for dvo in (local.custom_domain_enabled ? aws_acm_certificate.this[0].domain_validation_options : []) : dvo.domain_name => {
+    for dvo in(local.custom_domain_enabled ? aws_acm_certificate.this[0].domain_validation_options : []) : dvo.domain_name => {
       name   = dvo.resource_record_name
       record = dvo.resource_record_value
       type   = dvo.resource_record_type
@@ -126,7 +126,7 @@ resource "aws_route" "public_internet" {
 }
 
 resource "aws_route_table_association" "public" {
-  for_each = aws_subnet.public
+  for_each       = aws_subnet.public
   subnet_id      = each.value.id
   route_table_id = aws_route_table.public.id
 }
@@ -143,7 +143,7 @@ resource "aws_route" "private_nat" {
 }
 
 resource "aws_route_table_association" "private" {
-  for_each = aws_subnet.private
+  for_each       = aws_subnet.private
   subnet_id      = each.value.id
   route_table_id = aws_route_table.private.id
 }
@@ -263,7 +263,7 @@ resource "aws_ecs_cluster" "this" {
 
 data "aws_iam_policy_document" "task_assume_role" {
   statement {
-    effect = "Allow"
+    effect  = "Allow"
     actions = ["sts:AssumeRole"]
     principals {
       type        = "Service"
@@ -284,7 +284,7 @@ resource "aws_iam_role_policy_attachment" "task_execution_managed" {
 
 data "aws_iam_policy_document" "task_execution_secrets" {
   statement {
-    effect = "Allow"
+    effect  = "Allow"
     actions = ["secretsmanager:GetSecretValue"]
     resources = [
       aws_secretsmanager_secret.mistral_api_key.arn,
@@ -302,6 +302,41 @@ resource "aws_iam_role_policy" "task_execution_secrets" {
 resource "aws_iam_role" "task" {
   name               = "${local.name_prefix}-task"
   assume_role_policy = data.aws_iam_policy_document.task_assume_role.json
+}
+
+# -------------------------
+# EventBridge Scheduler (start/stop ECS)
+# -------------------------
+data "aws_iam_policy_document" "scheduler_assume_role" {
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRole"]
+    principals {
+      type        = "Service"
+      identifiers = ["scheduler.amazonaws.com"]
+    }
+  }
+}
+
+data "aws_iam_policy_document" "scheduler_update_ecs" {
+  statement {
+    effect    = "Allow"
+    actions   = ["ecs:UpdateService"]
+    resources = [aws_ecs_service.this.id]
+  }
+}
+
+resource "aws_iam_role" "scheduler" {
+  count              = var.enable_ecs_schedules ? 1 : 0
+  name               = "${local.name_prefix}-scheduler-role"
+  assume_role_policy = data.aws_iam_policy_document.scheduler_assume_role.json
+}
+
+resource "aws_iam_role_policy" "scheduler_update_ecs" {
+  count  = var.enable_ecs_schedules ? 1 : 0
+  name   = "${local.name_prefix}-scheduler-update-ecs"
+  role   = aws_iam_role.scheduler[0].id
+  policy = data.aws_iam_policy_document.scheduler_update_ecs.json
 }
 
 # -------------------------
@@ -462,8 +497,8 @@ resource "aws_ecs_service" "this" {
   launch_type     = "FARGATE"
 
   network_configuration {
-    subnets         = [for s in aws_subnet.private : s.id]
-    security_groups = [aws_security_group.ecs.id]
+    subnets          = [for s in aws_subnet.private : s.id]
+    security_groups  = [aws_security_group.ecs.id]
     assign_public_ip = false
   }
 
@@ -484,4 +519,51 @@ resource "aws_ecs_service" "this" {
     aws_lb_listener.http_redirect,
     aws_lb_listener.https,
   ]
+
+  lifecycle {
+    # Scheduler changes desiredCount outside of Terraform; always ignore drift here.
+    ignore_changes = [desired_count]
+  }
+}
+
+resource "aws_scheduler_schedule" "ecs_start" {
+  count                        = var.enable_ecs_schedules ? 1 : 0
+  name                         = "${local.name_prefix}-start-thu-sun-0900-paris"
+  schedule_expression          = var.ecs_schedule_start_cron
+  schedule_expression_timezone = var.ecs_schedule_timezone
+
+  flexible_time_window {
+    mode = "OFF"
+  }
+
+  target {
+    arn      = "arn:aws:scheduler:::aws-sdk:ecs:updateService"
+    role_arn = aws_iam_role.scheduler[0].arn
+    input = jsonencode({
+      Cluster      = aws_ecs_cluster.this.name
+      Service      = aws_ecs_service.this.name
+      DesiredCount = 1
+    })
+  }
+}
+
+resource "aws_scheduler_schedule" "ecs_stop" {
+  count                        = var.enable_ecs_schedules ? 1 : 0
+  name                         = "${local.name_prefix}-stop-thu-sun-1800-paris"
+  schedule_expression          = var.ecs_schedule_stop_cron
+  schedule_expression_timezone = var.ecs_schedule_timezone
+
+  flexible_time_window {
+    mode = "OFF"
+  }
+
+  target {
+    arn      = "arn:aws:scheduler:::aws-sdk:ecs:updateService"
+    role_arn = aws_iam_role.scheduler[0].arn
+    input = jsonencode({
+      Cluster      = aws_ecs_cluster.this.name
+      Service      = aws_ecs_service.this.name
+      DesiredCount = 0
+    })
+  }
 }

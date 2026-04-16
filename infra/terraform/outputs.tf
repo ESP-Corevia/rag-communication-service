@@ -49,6 +49,15 @@ output "cloudwatch_log_group" {
   value       = aws_cloudwatch_log_group.this.name
 }
 
+output "ecs_schedules" {
+  description = "EventBridge Scheduler schedules (start/stop) for ECS desiredCount."
+  value = {
+    enabled    = var.enable_ecs_schedules
+    start_name = try(aws_scheduler_schedule.ecs_start[0].name, "")
+    stop_name  = try(aws_scheduler_schedule.ecs_stop[0].name, "")
+  }
+}
+
 output "route53_name_servers" {
   description = "If a new hosted zone was created, delegate these name servers at your registrar."
   value       = try(aws_route53_zone.this[0].name_servers, [])

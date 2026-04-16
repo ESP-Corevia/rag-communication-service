@@ -99,3 +99,27 @@ variable "alb_idle_timeout" {
   type        = number
   default     = 3600
 }
+
+variable "enable_ecs_schedules" {
+  description = "Enable automatic start/stop schedules for the ECS service (EventBridge Scheduler)."
+  type        = bool
+  default     = true
+}
+
+variable "ecs_schedule_timezone" {
+  description = "Timezone used by the Scheduler expressions (handles DST automatically)."
+  type        = string
+  default     = "Europe/Paris"
+}
+
+variable "ecs_schedule_start_cron" {
+  description = "Scheduler cron expression for START (desiredCount=1)."
+  type        = string
+  default     = "cron(0 9 ? * THU-SUN *)"
+}
+
+variable "ecs_schedule_stop_cron" {
+  description = "Scheduler cron expression for STOP (desiredCount=0)."
+  type        = string
+  default     = "cron(0 18 ? * THU-SUN *)"
+}
