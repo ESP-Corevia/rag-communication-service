@@ -24,7 +24,7 @@ Ce service, c’est juste “le monsieur à l’accueil” qui :
 ## 2) Ce que le service fait (résumé)
 
 - Expose un serveur **Socket.io** (WebSocket) pour discuter en temps réel.
-- Gère des **agents** (ex: `medecin_generaliste`) avec :
+- Gère des **agents** (ex: `medecin_generaliste`, `dermatologue`, `nutritionniste`, `psychologue`) avec :
   - un prompt “règles + style”,
   - une détection d’urgence (mots-clés),
   - une recherche RAG dans Pinecone avec namespace.
@@ -113,7 +113,7 @@ Event `query` :
 ```js
 socket.emit("query", {
   type: "query",
-  agent: "medecin_generaliste",
+  agent: "medecin_generaliste", // ou: dermatologue | nutritionniste | psychologue
   query: "J'ai mal à la tête depuis ce matin",
   userId: "user123",
 });
@@ -194,6 +194,11 @@ Analogie :
 
 Aujourd’hui, les scripts et l’agent `medecin_generaliste` utilisent le namespace :
 - `medecin-generaliste`
+
+Pour les autres agents (si tu les ajoutes côté RAG / Pinecone) :
+- `dermatologue`
+- `nutritionniste`
+- `psychologue`
 
 ---
 
@@ -326,7 +331,7 @@ Lis et suis : `infra/terraform/README.md`
 - Tu n’as pas mis les clés dans `.env` (local) ou dans Secrets Manager (ECS).
 
 ### 13.2 Le client se connecte mais ne reçoit rien
-- Vérifie que tu envoies bien `agent: "medecin_generaliste"`.
+- Vérifie que tu envoies un agent valide : `medecin_generaliste` | `dermatologue` | `nutritionniste` | `psychologue`.
 - Vérifie les logs CloudWatch / console.
 
 ### 13.3 Pinecone renvoie 0 contexte

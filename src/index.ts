@@ -38,6 +38,9 @@ async function bootstrap() {
 ║                                                           ║
 ║  Agents disponibles:                                      ║
 ║    - medecin_generaliste                                  ║
+║    - dermatologue                                         ║
+║    - nutritionniste                                       ║
+║    - psychologue                                          ║
 ║                                                           ║
 ╚═══════════════════════════════════════════════════════════╝
     `);

@@ -10,6 +10,13 @@ const envSchema = z.object({
   PINECONE_API_KEY: z.string().min(1, 'PINECONE_API_KEY is required'),
   PINECONE_ENVIRONMENT: z.string().default('us-east-1-aws'),
   PINECONE_INDEX_NAME: z.string().default('corevia-medecin-generaliste'),
+  // Optional data-plane host URL shown in the Pinecone console (helps avoid control-plane lookups).
+  // Example: https://<index>-<id>.svc.<project>.pinecone.io
+  PINECONE_INDEX_HOST: z
+    .string()
+    .trim()
+    .optional()
+    .transform((value) => (value && value.length > 0 ? value : undefined)),
   LOG_LEVEL: z.enum(['error', 'warn', 'info', 'debug']).default('info'),
 });
 

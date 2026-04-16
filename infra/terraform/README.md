@@ -68,6 +68,12 @@ curl -s "$(terraform output -raw service_url)/health"
 
 ## Notes
 
+- Socket.io agents currently supported by the service:
+  - `medecin_generaliste`
+  - `dermatologue`
+  - `nutritionniste`
+  - `psychologue`
+- If you want real RAG context per agent, populate Pinecone namespaces accordingly (e.g. `medecin-generaliste`, `dermatologue`, `nutritionniste`, `psychologue`).
 - If Terraform created a new Route53 hosted zone, you must delegate its name servers at your registrar (see output `route53_name_servers`).
 - Default resources are sized for a light production workload and can be adjusted via variables (`task_cpu`, `task_memory`).
 - If you enable schedules (`enable_ecs_schedules=true`), Terraform ignores drift on ECS `desired_count` (so the Scheduler can change it without Terraform “fighting back”).

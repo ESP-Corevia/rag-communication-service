@@ -25,6 +25,9 @@ export interface AgentResponse {
 
 export enum AgentType {
   MEDECIN_GENERALISTE = 'medecin_generaliste',
+  DERMATOLOGUE = 'dermatologue',
+  NUTRITIONNISTE = 'nutritionniste',
+  PSYCHOLOGUE = 'psychologue',
 }
 
 export interface PineconeMatch {

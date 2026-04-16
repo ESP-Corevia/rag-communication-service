@@ -11,6 +11,10 @@ import { Server, Socket } from 'socket.io';
 import { logger } from '../utils/logger';
 import { ClientMessage, ServerMessage } from '../types';
 import { MedecinGeneralisteAgent } from '../agents/medecin.agent';
+import { DermatologueAgent } from '../agents/dermato.agent';
+import { NutritionnisteAgent } from '../agents/nutrition.agent';
+import { PsychologueAgent } from '../agents/psychologue.agent';
+import { BaseAgent } from '../agents/base.agent';
 
 @WebSocketGateway({
   cors: {
@@ -21,10 +25,24 @@ export class WebSocketService implements OnGatewayConnection, OnGatewayDisconnec
   @WebSocketServer()
   server: Server;
 
-  private agents: Map<string, any> = new Map();
+  private agents: Map<string, BaseAgent> = new Map();
 
-  constructor(private medecinAgent: MedecinGeneralisteAgent) {
+  constructor(
+    private medecinAgent: MedecinGeneralisteAgent,
+    private dermatoAgent: DermatologueAgent,
+    private nutritionAgent: NutritionnisteAgent,
+    private psyAgent: PsychologueAgent
+  ) {
     this.agents.set('medecin_generaliste', medecinAgent);
+    this.agents.set('dermatologue', dermatoAgent);
+    this.agents.set('dermato', dermatoAgent);
+
+    this.agents.set('nutritionniste', nutritionAgent);
+    this.agents.set('nutritioniste', nutritionAgent);
+
+    this.agents.set('psychologue', psyAgent);
+    this.agents.set('psycologue', psyAgent);
+    this.agents.set('psy', psyAgent);
     logger.info('WebSocket service initialized');
   }
 

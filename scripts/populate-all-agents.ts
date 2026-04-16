@@ -251,6 +251,53 @@ const dermatologueKnowledge = [
 ];
 
 // ========================
+// PSYCHOLOGUE
+// ========================
+const psychologueKnowledge = [
+  {
+    id: 'stress-001',
+    text: `Stress:
+- Le stress est une réponse normale du corps. Il peut devenir problématique s'il est constant.
+- Signes fréquents: irritabilité, fatigue, troubles du sommeil, ruminations, tensions musculaires.
+- Stratégies: respiration lente (4-6 cycles/min), pauses, activité physique légère, limiter caféine/alcool, routine de sommeil.
+- Consulter: si le stress impacte la vie quotidienne ou s'accompagne de crises de panique.`,
+    category: 'stress',
+  },
+  {
+    id: 'anxiety-psy-001',
+    text: `Anxiété:
+- Pensées inquiétantes persistantes, tension, difficulté à se détendre, symptômes physiques (palpitations, souffle court).
+- Techniques: ancrage (5-4-3-2-1), respiration diaphragmatique, écrire les pensées, exposition progressive.
+- Consulter: si l'anxiété est fréquente, intense, ou entraîne évitements importants.`,
+    category: 'anxiete',
+  },
+  {
+    id: 'depression-001',
+    text: `Humeur dépressive:
+- Signes: tristesse, perte d'intérêt, fatigue, troubles sommeil/appétit, difficulté concentration.
+- Aide: routine minimale, contacts sociaux, activités plaisantes simples, demander du soutien, consulter un professionnel.
+- Urgence: idées suicidaires, désespoir extrême, danger immédiat → 15 / 112.`,
+    category: 'depression',
+  },
+  {
+    id: 'panic-001',
+    text: `Crise de panique:
+- Pic de peur intense avec symptômes physiques (cœur qui bat, tremblements, souffle court), souvent transitoire.
+- Aide immédiate: ralentir la respiration, se rappeler que la crise passe, se concentrer sur l'expiration, s'asseoir.
+- Consulter: crises répétées, peur d'en refaire, évitements.`,
+    category: 'panique',
+  },
+  {
+    id: 'sleep-psy-001',
+    text: `Sommeil:
+- Hygiène du sommeil: horaires réguliers, limiter écrans le soir, éviter caféine tard, chambre fraîche et sombre.
+- Si ruminations: noter les pensées, relaxation, respiration, routine apaisante.
+- Consulter: insomnie chronique (>3 mois) ou forte somnolence diurne.`,
+    category: 'sommeil',
+  },
+];
+
+// ========================
 // PÉDIATRE
 // ========================
 const pediatreKnowledge = [
@@ -448,6 +495,7 @@ async function main() {
     await populateNamespace(llmService, pineconeService, dermatologueKnowledge, 'dermatologue');
     await populateNamespace(llmService, pineconeService, pediatreKnowledge, 'pediatre');
     await populateNamespace(llmService, pineconeService, nutritionnisteKnowledge, 'nutritionniste');
+    await populateNamespace(llmService, pineconeService, psychologueKnowledge, 'psychologue');
 
     logger.info('\n✅ ALL AGENTS POPULATED SUCCESSFULLY!');
     logger.info('📊 Summary:');
@@ -456,7 +504,8 @@ async function main() {
     logger.info(`  - Dermatologue: ${dermatologueKnowledge.length} docs`);
     logger.info(`  - Pédiatre: ${pediatreKnowledge.length} docs`);
     logger.info(`  - Nutritionniste: ${nutritionnisteKnowledge.length} docs`);
-    logger.info(`  - TOTAL: ${medecinGeneralisteKnowledge.length + cardiologueKnowledge.length + dermatologueKnowledge.length + pediatreKnowledge.length + nutritionnisteKnowledge.length} docs\n`);
+    logger.info(`  - Psychologue: ${psychologueKnowledge.length} docs`);
+    logger.info(`  - TOTAL: ${medecinGeneralisteKnowledge.length + cardiologueKnowledge.length + dermatologueKnowledge.length + pediatreKnowledge.length + nutritionnisteKnowledge.length + psychologueKnowledge.length} docs\n`);
 
     process.exit(0);
   } catch (error) {

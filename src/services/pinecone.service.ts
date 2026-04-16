@@ -8,16 +8,20 @@ import { RAGContext, PineconeMatch } from '../types';
 export class PineconeService {
   private pinecone: Pinecone;
   private indexName: string;
+  private indexHost?: string;
 
   constructor() {
     const config = getConfig();
     this.indexName = config.PINECONE_INDEX_NAME;
+    this.indexHost = config.PINECONE_INDEX_HOST;
 
     this.pinecone = new Pinecone({
       apiKey: config.PINECONE_API_KEY,
     });
 
-    logger.info(`Pinecone client initialized with index: ${this.indexName}`);
+    logger.info(
+      `Pinecone client initialized with index: ${this.indexName}${this.indexHost ? ` (host: ${this.indexHost})` : ''}`
+    );
   }
 
   /**
@@ -32,7 +36,7 @@ export class PineconeService {
     try {
       logger.debug(`Searching Pinecone namespace '${namespace}' with topK=${topK}, minScore=${minScore}`);
 
-      const index = this.pinecone.Index(this.indexName);
+      const index = this.pinecone.Index(this.indexName, this.indexHost);
 
       const queryResponse = await index.namespace(namespace).query({
         vector: embedding,
@@ -74,7 +78,7 @@ export class PineconeService {
     try {
       logger.debug(`Upserting ${vectors.length} vectors to Pinecone namespace '${namespace}'`);
 
-      const index = this.pinecone.Index(this.indexName);
+      const index = this.pinecone.Index(this.indexName, this.indexHost);
 
       await index.namespace(namespace).upsert(vectors);
 
@@ -92,7 +96,7 @@ export class PineconeService {
     try {
       logger.warn(`Deleting all vectors in namespace: ${namespace}`);
 
-      const index = this.pinecone.Index(this.indexName);
+      const index = this.pinecone.Index(this.indexName, this.indexHost);
 
       await index.namespace(namespace).deleteAll();
 
