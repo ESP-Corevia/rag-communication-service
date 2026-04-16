@@ -1,0 +1,76 @@
+name: Deploy to ECS (Fargate)
+
+on:
+  push:
+    branches: [ "main" ]
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: eu-west-1
+  ECR_REPOSITORY: corevia-ia-service
+  ECS_TASK_DEFINITION: deploy/ecs-task-def.json
+  CONTAINER_NAME: corevia-ia-service
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, tag, and push image to ECR
+        id: build-image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" .
+          docker push "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Fill task definition placeholders
+        run: |
+          jq \
+            --arg execRole "${{ secrets.ECS_EXECUTION_ROLE_ARN }}" \
+            --arg taskRole "${{ secrets.ECS_TASK_ROLE_ARN }}" \
+            --arg logGroup "${{ secrets.CLOUDWATCH_LOG_GROUP }}" \
+            --arg mistralSecret "${{ secrets.MISTRAL_SECRET_ARN }}" \
+            --arg pineconeSecret "${{ secrets.PINECONE_SECRET_ARN }}" \
+            '
+            .executionRoleArn = $execRole
+            | .taskRoleArn = $taskRole
+            | (.containerDefinitions[] | select(.name=="corevia-ia-service") | .logConfiguration.options["awslogs-group"]) = $logGroup
+            | (.containerDefinitions[] | select(.name=="corevia-ia-service") | .secrets[] | select(.name=="MISTRAL_API_KEY") | .valueFrom) = $mistralSecret
+            | (.containerDefinitions[] | select(.name=="corevia-ia-service") | .secrets[] | select(.name=="PINECONE_API_KEY") | .valueFrom) = $pineconeSecret
+            ' \
+            "$ECS_TASK_DEFINITION" > task-def.filled.json
+
+      - name: Render ECS task definition
+        id: render-task-def
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: task-def.filled.json
+          container-name: ${{ env.CONTAINER_NAME }}
+          image: ${{ steps.build-image.outputs.image }}
+
+      - name: Deploy ECS task definition
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.render-task-def.outputs.task-definition }}
+          cluster: ${{ secrets.ECS_CLUSTER_NAME }}
+          service: ${{ secrets.ECS_SERVICE_NAME }}
+          wait-for-service-stability: true

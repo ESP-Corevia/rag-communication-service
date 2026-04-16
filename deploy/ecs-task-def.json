@@ -1,0 +1,36 @@
+{
+  "family": "corevia-ia-task",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "1024",
+  "executionRoleArn": "REPLACE_EXECUTION_ROLE_ARN",
+  "taskRoleArn": "REPLACE_TASK_ROLE_ARN",
+  "containerDefinitions": [
+    {
+      "name": "corevia-ia-service",
+      "image": "REPLACE_IMAGE_URI",
+      "essential": true,
+      "portMappings": [{ "containerPort": 4000, "hostPort": 4000, "protocol": "tcp" }],
+      "environment": [
+        { "name": "NODE_ENV", "value": "production" },
+        { "name": "PORT", "value": "4000" },
+        { "name": "PINECONE_ENVIRONMENT", "value": "us-east-1-aws" },
+        { "name": "PINECONE_INDEX_NAME", "value": "corevia-medical" },
+        { "name": "LOG_LEVEL", "value": "info" }
+      ],
+      "secrets": [
+        { "name": "MISTRAL_API_KEY", "valueFrom": "REPLACE_MISTRAL_SECRET_ARN" },
+        { "name": "PINECONE_API_KEY", "valueFrom": "REPLACE_PINECONE_SECRET_ARN" }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "REPLACE_LOG_GROUP",
+          "awslogs-region": "eu-west-1",
+          "awslogs-stream-prefix": "ecs"
+        }
+      }
+    }
+  ]
+}
